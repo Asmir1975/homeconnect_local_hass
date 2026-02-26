@@ -21,7 +21,7 @@ from homeassistant.const import (
     EntityCategory,
     UnitOfTime,
 )
-from homeconnect_websocket.entities import Execution
+from homeconnect_websocket.entities import Access, Execution
 
 from .descriptions_definitions import (
     EntityDescriptions,
@@ -59,6 +59,7 @@ def generate_start_button(appliance: HomeAppliance) -> EntityDescriptions:
         return HCButtonEntityDescription(
             key="button_start_program",
             entity="BSH.Common.Root.ActiveProgram",
+            available_access=(Access.READ_WRITE, Access.WRITE_ONLY, Access.READ),
         )
     return None
 
@@ -86,6 +87,7 @@ def generate_power_switch(appliance: HomeAppliance) -> EntityDescriptions:
                             entity="BSH.Common.Setting.PowerState",
                             device_class=SwitchDeviceClass.SWITCH,
                             value_mapping=mapping,
+                            available_access=(Access.READ_WRITE, Access.WRITE_ONLY, Access.READ),
                         )
                     ]
 
@@ -97,6 +99,7 @@ def generate_power_switch(appliance: HomeAppliance) -> EntityDescriptions:
                 has_state_translation=True,
                 # more then two power states
                 entity_registry_enabled_default=len(settable_states) > 2,
+                available_access=(Access.READ_WRITE, Access.WRITE_ONLY, Access.READ),
             )
         ]
     return entity_descriptions
@@ -117,7 +120,7 @@ def generate_door_state(appliance: HomeAppliance) -> HCSensorEntityDescription |
 
 def generate_program(appliance: HomeAppliance) -> EntityDescriptions:
     """Get Door program select and sensor description."""
-    pattern = re.compile(r"^BSH\.Common\.Program\.Favorite\.(.*)$")
+    pattern = re.compile(r"^BSH\\.Common\\.Program\\.Favorite\\.(.*)$")
 
     programs = {}
 
