@@ -120,7 +120,7 @@ def generate_door_state(appliance: HomeAppliance) -> HCSensorEntityDescription |
 
 def generate_program(appliance: HomeAppliance) -> EntityDescriptions:
     """Get Door program select and sensor description."""
-    pattern = re.compile(r"^BSH\\.Common\\.Program\\.Favorite\\.(.*)$")
+    pattern = re.compile(r"^BSH\.Common\.Program\.Favorite\.(.*)$")
 
     programs = {}
 
