@@ -256,6 +256,56 @@ async def test_reconfigure_profile_via_sign_in(
     mock_setup_entry.assert_awaited_once()
 
 
+async def test_reconfigure_profile_sign_in_unexpected_error(
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    A genuinely unexpected failure still surfaces a translated error, not "Unknown error".
+
+    The specific (HCLegacyOAuthError, HCCloudApiError) catch only covers
+    failures those two libraries themselves raise - anything else (a cloud
+    API response shape neither expects, a library bug) used to fall through
+    uncaught to HA's generic "Unknown error" screen.
+    """
+    monkeypatch.setattr(
+        config_flow,
+        "legacy_async_exchange_code_for_token",
+        AsyncMock(return_value="fake_token"),
+    )
+    monkeypatch.setattr(
+        config_flow,
+        "async_fetch_appliances",
+        AsyncMock(side_effect=RuntimeError("boom")),
+    )
+
+    mock_config = _mock_entry()
+    mock_config.add_to_hass(hass)
+
+    result = await mock_config.start_reconfigure_flow(hass)
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "reconfigure_profile"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": "legacy_oauth_region"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], user_input={"region": "EU"}
+    )
+    state = parse_qs(urlparse(result["description_placeholders"]["authorize_url"]).query)["state"][
+        0
+    ]
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        user_input={"legacy_redirect_url": f"homeconnectapp://auth?code=fakecode&state={state}"},
+    )
+
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "oauth_fetch_failed"
+    assert result["description_placeholders"] == {"error": "boom"}
+
+
 async def test_reconfigure_profile_appliance_not_in_file(
     hass: HomeAssistant,
     mock_process_profile_file: MagicMock,

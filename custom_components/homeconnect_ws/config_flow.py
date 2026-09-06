@@ -248,6 +248,15 @@ class HomeConnectConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_abort(
                     reason="oauth_fetch_failed", description_placeholders={"error": str(err)}
                 )
+            except Exception as err:
+                # A genuinely unexpected failure here (a cloud API response
+                # shape neither of the above expects, a library bug, ...)
+                # would otherwise reach the user as HA's generic "Unknown
+                # error" with no way to tell what actually happened.
+                _LOGGER.exception("Unexpected error during legacy OAuth flow")
+                return self.async_abort(
+                    reason="oauth_fetch_failed", description_placeholders={"error": str(err)}
+                )
             if self.unique_id:
                 # Reauth/reconfigure already know which Appliance this is -
                 # device_select is for picking a *new* one and would filter
