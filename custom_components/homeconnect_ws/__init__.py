@@ -31,6 +31,8 @@ from .export_view import HCExportView
 from .helpers import error_decorator, get_config_entry_from_call
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from home_disconnect import HomeAppliance
     from homeassistant.core import Event, HomeAssistant, ServiceCall, ServiceResponse
     from homeassistant.helpers.typing import ConfigType
@@ -62,12 +64,26 @@ class HCData:
 
 
 @dataclass
+class LegacyOAuthCache:
+    """A still-good legacy-OAuth token, so a second sign-in skips the browser round-trip."""
+
+    region: str
+    access_token: str
+    expires_at: datetime
+
+
+@dataclass
 class HCConfig:
     """Dataclass for hass.data."""
 
     setup_from_dump: bool = False
     override_host: str | None = None
     override_psk: str | None = None
+    # Cleared naturally on restart along with the rest of hass.data - no
+    # separate cleanup needed for that case. The expires_at check exists for
+    # the more common case: adding several Appliances from the same account
+    # within one HA session, well before a restart happens.
+    legacy_oauth_cache: LegacyOAuthCache | None = None
 
 
 type HCConfigEntry = ConfigEntry[HCData]

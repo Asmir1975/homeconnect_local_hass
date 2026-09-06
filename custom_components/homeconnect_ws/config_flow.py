@@ -52,8 +52,9 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
 )
+from homeassistant.util import dt as dt_util
 
-from . import HC_KEY, HCConfig
+from . import HC_KEY, HCConfig, LegacyOAuthCache
 from .const import (
     CONF_AES_IV,
     CONF_FILE,
@@ -73,6 +74,10 @@ from .hc_legacy_oauth import generate_code_verifier as legacy_generate_code_veri
 from .hc_legacy_oauth import generate_state as legacy_generate_state
 
 CONF_LEGACY_REDIRECT_URL = "legacy_redirect_url"
+# BSH's token response is expected to carry its own expires_in, but fall
+# back to a short, conservative window if it's ever missing rather than not
+# caching at all.
+_LEGACY_OAUTH_CACHE_FALLBACK_SECONDS = 300
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigFlowResult
@@ -213,10 +218,44 @@ class HomeConnectConfigFlow(ConfigFlow, domain=DOMAIN):
         self.global_config = self.hass.data.get(HC_KEY)
         return self.async_show_menu(step_id="user", menu_options=["legacy_oauth_region", "upload"])
 
+    async def _async_step_appliances_fetched(self) -> ConfigFlowResult:
+        """Appliances is now populated (either freshly or from a cached token) - route onward."""
+        if self.unique_id:
+            # Reauth/reconfigure already know which Appliance this is -
+            # device_select is for picking a *new* one and would filter
+            # this one out as already configured.
+            return await self.async_step_set_data()
+        return await self.async_step_device_select()
+
     async def async_step_legacy_oauth_region(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Ask which Home Connect account region to use, then show the authorize URL."""
+        if user_input is None:
+            cache = self.global_config.legacy_oauth_cache if self.global_config else None
+            if cache is not None and cache.expires_at > dt_util.utcnow():
+                # A previous sign-in this HA session is still good - skip the
+                # whole browser round-trip and re-fetch a fresh appliance
+                # list with the cached token (adding a second/third
+                # Appliance from the same account no longer means redoing
+                # the OAuth dance every time).
+                session = async_get_clientsession(self.hass)
+                try:
+                    self.appliances = await async_fetch_appliances(
+                        session, cache.access_token, cache.region
+                    )
+                except Exception as err:  # noqa: BLE001 - falls back to a fresh sign-in below
+                    # The cached token turned out to be no good despite our
+                    # own expiry bookkeeping (e.g. revoked early) - clear it
+                    # and fall through to a fresh sign-in below instead of
+                    # erroring the whole flow.
+                    _LOGGER.debug("Cached legacy OAuth token rejected: %s", err)
+                    if self.global_config:
+                        self.global_config.legacy_oauth_cache = None
+                else:
+                    self._region = cache.region
+                    return await self._async_step_appliances_fetched()
+
         if user_input is not None:
             self._region = user_input[CONF_REGION]
             self._legacy_code_verifier = legacy_generate_code_verifier()
@@ -239,10 +278,12 @@ class HomeConnectConfigFlow(ConfigFlow, domain=DOMAIN):
                 code = legacy_extract_code_from_redirect(
                     user_input[CONF_LEGACY_REDIRECT_URL], self._legacy_state
                 )
-                access_token = await legacy_async_exchange_code_for_token(
+                token = await legacy_async_exchange_code_for_token(
                     session, self._region, code, self._legacy_code_verifier
                 )
-                self.appliances = await async_fetch_appliances(session, access_token, self._region)
+                self.appliances = await async_fetch_appliances(
+                    session, token.access_token, self._region
+                )
             except (HCLegacyOAuthError, HCCloudApiError) as err:
                 _LOGGER.debug("Legacy OAuth flow failed: %s", err)
                 return self.async_abort(
@@ -257,12 +298,14 @@ class HomeConnectConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_abort(
                     reason="oauth_fetch_failed", description_placeholders={"error": str(err)}
                 )
-            if self.unique_id:
-                # Reauth/reconfigure already know which Appliance this is -
-                # device_select is for picking a *new* one and would filter
-                # this one out as already configured.
-                return await self.async_step_set_data()
-            return await self.async_step_device_select()
+            if self.global_config:
+                self.global_config.legacy_oauth_cache = LegacyOAuthCache(
+                    region=self._region,
+                    access_token=token.access_token,
+                    expires_at=dt_util.utcnow()
+                    + timedelta(seconds=token.expires_in or _LEGACY_OAUTH_CACHE_FALLBACK_SECONDS),
+                )
+            return await self._async_step_appliances_fetched()
 
         authorize_url = legacy_build_authorize_url(
             self._region, self._legacy_code_verifier, self._legacy_state
