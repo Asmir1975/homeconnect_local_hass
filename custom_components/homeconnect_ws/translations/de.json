@@ -3985,6 +3985,9 @@
       },
       "light_cooking_ambient_lighting": {
         "name": "Umgebungslicht"
+      },
+      "light_oven_cavity": {
+        "name": "Garraumlicht"
       }
     },
     "fan": {

@@ -3985,6 +3985,9 @@
       },
       "light_cooking_ambient_lighting": {
         "name": "Ambient Light"
+      },
+      "light_oven_cavity": {
+        "name": "Cavity Light"
       }
     },
     "fan": {

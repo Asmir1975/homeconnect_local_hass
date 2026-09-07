@@ -448,6 +448,24 @@ def generate_hood_ambient_light(appliance: HomeAppliance) -> HCLightEntityDescri
     return None
 
 
+def generate_oven_cavity_light(appliance: HomeAppliance) -> HCLightEntityDescription | None:
+    """Get oven cavity light description."""
+    if "Cooking.Oven.Setting.Light.Cavity.001.Power" not in appliance.entities:
+        return None
+
+    if "Cooking.Oven.Setting.Light.Cavity.001.Brightness" in appliance.entities:
+        return HCLightEntityDescription(
+            key="light_oven_cavity",
+            entity="Cooking.Oven.Setting.Light.Cavity.001.Power",
+            brightness_entity="Cooking.Oven.Setting.Light.Cavity.001.Brightness",
+        )
+
+    return HCLightEntityDescription(
+        key="light_oven_cavity",
+        entity="Cooking.Oven.Setting.Light.Cavity.001.Power",
+    )
+
+
 COOKING_ENTITY_DESCRIPTIONS: _EntityDescriptionsDefinitionsType = {
     "sensor": [
         HCSensorEntityDescription(
@@ -790,7 +808,7 @@ COOKING_ENTITY_DESCRIPTIONS: _EntityDescriptionsDefinitionsType = {
             device_class=SwitchDeviceClass.SWITCH,
         ),
     ],
-    "light": [generate_hood_light, generate_hood_ambient_light],
+    "light": [generate_hood_light, generate_hood_ambient_light, generate_oven_cavity_light],
     "fan": [generate_hood_fan],
     "button": [
         HCButtonEntityDescription(
