@@ -25,7 +25,7 @@ from home_disconnect.entities import (
     OptionDescription,
 )
 from homeassistant.components.sensor import SensorDeviceClass
-from homeassistant.const import CONF_DESCRIPTION, CONF_DEVICE_ID, CONF_HOST, CONF_NAME
+from homeassistant.const import CONF_DESCRIPTION, CONF_DEVICE_ID, CONF_HOST, CONF_MODE, CONF_NAME
 
 MOCK_APPLIANCE_INFO = {
     "brand": "Fake_Brand",
@@ -45,6 +45,7 @@ MOCK_TLS_DEVICE_ID_2 = "102030405060708090"
 MOCK_TLS_DEVICE_DESCRIPTION = {"info": {}, "MOCK_TLS_DEVICE_DESCRIPTION": None}
 MOCK_TLS_DEVICE_INFO = {
     "haId": MOCK_TLS_DEVICE_ID,
+    "deviceID": MOCK_TLS_DEVICE_ID,
     "type": "Test_TLS",
     "serialNumber": MOCK_TLS_DEVICE_ID,
     "brand": "Test_Brand",
@@ -62,6 +63,7 @@ MOCK_AES_DEVICE_ID = "101112131415161718"
 MOCK_AES_DEVICE_DESCRIPTION = {"info": {}, "MOCK_AES_DEVICE_DESCRIPTION": None}
 MOCK_AES_DEVICE_INFO = {
     "haId": MOCK_AES_DEVICE_ID,
+    "deviceID": MOCK_AES_DEVICE_ID,
     "type": "Test_AES",
     "serialNumber": MOCK_AES_DEVICE_ID,
     "brand": "Test_Brand",
@@ -526,6 +528,7 @@ DEVICE_DESCRIPTION = DeviceDescription(
 MOCK_CONFIG_DATA = {
     CONF_DESCRIPTION: DEVICE_DESCRIPTION,
     CONF_HOST: "1.2.3.4",
+    CONF_MODE: "AES",
     CONF_PSK: "PSK_KEY",
     CONF_AES_IV: "AES_IV",
     CONF_DEVICE_ID: "Test_Device_ID",

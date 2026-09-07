@@ -39,11 +39,26 @@
         "data": {
           "legacy_redirect_url": "Redirect URL"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Appliance",
+        "menu_options": {
+          "reconfigure_connection": "Change Connection",
+          "reconfigure_profile": "Update Profile File"
+        }
+      },
+      "reconfigure_profile": {
+        "title": "Update Profile File",
+        "menu_options": {
+          "legacy_oauth_region": "Sign in with Home Connect",
+          "upload": "Upload Profile File"
+        }
       }
     },
     "error": {
       "cannot_connect": "Connection to Appliance failed",
-      "already_configured": "This Appliance is already configured"
+      "already_configured": "This Appliance is already configured",
+      "cannot_connect_automatic": "Automatic (mDNS) connection failed - enter your Appliance's IP-Address or hostname manually"
     },
     "abort": {
       "auth_failed": "Authentication failed",
@@ -54,7 +69,8 @@
       "all_setup": "All Appliances in this Profile File are already setup",
       "failed_to_write_profile_file": "Profile File could not be stored",
       "oauth_fetch_failed": "Could not fetch appliance profiles from Home Connect: {error}",
-      "reauth_entry_not_found": "The config entry being re-authenticated no longer exists"
+      "reauth_entry_not_found": "The config entry being re-authenticated no longer exists",
+      "reconfigure_successful": "Reconfiguration successful"
     }
   },
   "entity": {
@@ -4009,6 +4025,9 @@
       },
       "light_cooking_ambient_lighting": {
         "name": "Ambient Light"
+      },
+      "light_oven_cavity": {
+        "name": "Cavity Light"
       }
     },
     "fan": {
