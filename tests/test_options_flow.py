@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 from homeassistant.const import CONF_MODE
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.network import NoURLAvailableError
 from homeassistant.setup import async_setup_component
 
 from . import setup_config_entry
@@ -67,6 +68,66 @@ async def test_options_flow_export_safe_creates_signed_link_notification(
     assert f"/api/homeconnect_ws/export/{entry.entry_id}" in message
     assert "authSig=" in message
     assert "fake_brand_Fake_vib_profile_safe.zip" in message
+
+
+async def test_options_flow_export_safe_matches_current_request_url(
+    hass: HomeAssistant,
+    mock_appliance: MockAppliance,
+    patch_entity_description: None,
+) -> None:
+    """
+    The signed link matches how the current browser is connected, not just the internal URL.
+
+    get_url()'s default prefers the internal URL even when the request
+    submitting this form came in over a remote/Nabu Casa connection, which
+    produces an unreachable link (#73). require_current_request=True is what
+    makes get_url() match the actual connection instead.
+    """
+    assert await async_setup_component(hass, "http", {})
+    assert await setup_config_entry(hass, MOCK_CONFIG_DATA)
+    entry = hass.config_entries.async_entries("homeconnect_ws")[0]
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    with (
+        patch(
+            "custom_components.homeconnect_ws.config_flow.get_url",
+            return_value="https://example.ui.nabu.casa",
+        ) as mock_get_url,
+        patch("homeassistant.core.ServiceRegistry.async_call", new_callable=AsyncMock),
+    ):
+        await hass.config_entries.options.async_configure(result["flow_id"], {"mode": "safe"})
+
+    mock_get_url.assert_called_once_with(hass, require_current_request=True)
+
+
+async def test_options_flow_export_safe_falls_back_without_current_request(
+    hass: HomeAssistant,
+    mock_appliance: MockAppliance,
+    patch_entity_description: None,
+) -> None:
+    """Falls back to the plain URL lookup if there's no active HTTP request to match."""
+    assert await async_setup_component(hass, "http", {})
+    assert await setup_config_entry(hass, MOCK_CONFIG_DATA)
+    entry = hass.config_entries.async_entries("homeconnect_ws")[0]
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    with (
+        patch(
+            "custom_components.homeconnect_ws.config_flow.get_url",
+            side_effect=[NoURLAvailableError, "http://homeassistant.local:8123"],
+        ) as mock_get_url,
+        patch("homeassistant.core.ServiceRegistry.async_call", new_callable=AsyncMock) as mock_call,
+    ):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"], {"mode": "safe"}
+        )
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert mock_get_url.call_count == 2
+    message = mock_call.call_args.args[2]["message"]
+    assert "http://homeassistant.local:8123" in message
 
 
 async def test_options_flow_export_full_writes_file(

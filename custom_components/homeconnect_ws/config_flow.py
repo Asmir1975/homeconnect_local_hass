@@ -44,7 +44,7 @@ from homeassistant.const import (
     CONF_NAME,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.network import get_url
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.selector import (
     FileSelector,
     FileSelectorConfig,
@@ -662,7 +662,17 @@ class HCOptionsFlowHandler(OptionsFlow):
         # feature schema, meant to be shared), so a signed link is fine even
         # though the link itself briefly appears in the notification and in
         # HA's own access log.
-        base_url = get_url(self.hass)
+        #
+        # require_current_request matches the URL to however the browser
+        # submitting this form is actually connected right now (local network,
+        # remote DNS, or Nabu Casa) - get_url()'s default otherwise always
+        # prefers the internal URL, which is unreachable for anyone accessing
+        # HA remotely (#73). Only falls back to the plain lookup if this step
+        # is ever invoked outside a real HTTP request (not expected here).
+        try:
+            base_url = get_url(self.hass, require_current_request=True)
+        except NoURLAvailableError:
+            base_url = get_url(self.hass)
         path = f"/api/{DOMAIN}/export/{self._config_entry.entry_id}"
         signed_path = async_sign_path(self.hass, path, timedelta(minutes=5))
         stub = filename_stub(self._config_entry)
