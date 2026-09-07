@@ -34,7 +34,6 @@ from .const import (
 )
 from .coordinator import HomeConnectCoordinator
 from .entity_descriptions import get_available_entities
-from .export_view import HCExportView
 from .helpers import error_decorator, get_config_entry_from_call
 from .profile_storage import load_description_files, remove_description_files
 
@@ -207,8 +206,6 @@ async def _set_value_or_raise(entity: Entity, relative_time_in_seconds: int) -> 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up integration global config."""
     hass.data.setdefault(DOMAIN, HCConfig())
-    if hass.http is not None:
-        hass.http.register_view(HCExportView())
     if DOMAIN in config:
         hass.data[HC_KEY].setup_from_dump = config[DOMAIN].get(CONF_DEV_SETUP_FROM_DUMP, False)
         hass.data[HC_KEY].override_host = config[DOMAIN].get(CONF_DEV_OVERRIDE_HOST)

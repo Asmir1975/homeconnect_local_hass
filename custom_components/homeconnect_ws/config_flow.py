@@ -10,6 +10,7 @@ from asyncio import Event, wait_for
 from binascii import Error as BinasciiError
 from copy import deepcopy
 from datetime import timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 from zipfile import ZipFile
 
@@ -42,7 +43,6 @@ from homeassistant.const import (
     CONF_NAME,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.selector import (
     FileSelector,
     FileSelectorConfig,
@@ -62,7 +62,7 @@ from .const import (
     DOMAIN,
     AppliancePayload,
 )
-from .export_profile import filename_stub
+from .export_profile import build_profile_zip, filename_stub
 from .hc_cloud_api import REGION_ASSET_BASE, HCCloudApiError, async_fetch_appliances
 from .hc_legacy_oauth import HCLegacyOAuthError
 from .hc_legacy_oauth import async_exchange_code_for_token as legacy_async_exchange_code_for_token
@@ -78,8 +78,6 @@ CONF_LEGACY_REDIRECT_URL = "legacy_redirect_url"
 _LEGACY_OAUTH_CACHE_FALLBACK_SECONDS = 300
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from homeassistant.config_entries import ConfigFlowResult
     from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 
@@ -638,7 +636,21 @@ class HomeConnectConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class HCOptionsFlowHandler(OptionsFlow):
-    """Options flow: export the appliance's profile as a downloadable ZIP."""
+    """
+    Options flow: export the appliance's Full profile ZIP to the config directory.
+
+    The Safe profile (no key/MAC/serial - just the feature schema, meant to
+    be shared, e.g. attached to a feature-request issue) no longer goes
+    through this flow at all - it's served natively via the diagnostics
+    platform (see diagnostics.py) instead, which gets HA's own built-in
+    one-click "Download Diagnostics" button with zero custom UI needed here.
+
+    Full still contains the real local encryption key, so it's deliberately
+    NOT served over HTTP even admin-gated - writing it to the config
+    directory instead requires actual filesystem access (Samba/SSH/File
+    Editor) to retrieve it, a real access-control boundary independent of
+    whoever's logged into the HA frontend at the time.
+    """
 
     def __init__(self, config_entry: HCConfigEntry) -> None:
         """Initialize options flow."""
@@ -657,54 +669,23 @@ class HCOptionsFlowHandler(OptionsFlow):
         )
         return self.async_create_entry(title="", data=self._config_entry.options)
 
-    def _build_download_link(self, variant: str) -> str:
-        # require_current_request matches the URL to however the browser
-        # submitting this form is actually connected right now (local network,
-        # remote DNS, or Nabu Casa) - get_url()'s default otherwise always
-        # prefers the internal URL, which is unreachable for anyone accessing
-        # HA remotely (#73). Only falls back to the plain lookup if this step
-        # is ever invoked outside a real HTTP request (not expected here).
-        try:
-            base_url = get_url(self.hass, require_current_request=True)
-        except NoURLAvailableError:
-            base_url = get_url(self.hass)
-        path = f"/api/{DOMAIN}/export/{self._config_entry.entry_id}/{variant}"
-        return f"{base_url.rstrip('/')}{path}"
-
-    async def _handle_export_safe(self) -> ConfigFlowResult:
-        stub = filename_stub(self._config_entry)
-        link = self._build_download_link("safe")
-        message = f"Open this link in your browser to download `{stub}_profile_safe.zip`:\n\n{link}"
-        return await self._notify_and_close(message)
-
-    async def _handle_export_full(self) -> ConfigFlowResult:
-        # Full contains the appliance's real encryption key, but the download
-        # view is gated by @require_admin (see export_view.py) rather than a
-        # signed link - only an already-logged-in admin can use this link at
-        # all, the same real access-control boundary Safe now relies on, so
-        # there's no more reason for Full to take the filesystem-write detour
-        # Safe doesn't.
-        stub = filename_stub(self._config_entry)
-        link = self._build_download_link("full")
-        message = f"Open this link in your browser to download `{stub}_profile_full.zip`:\n\n{link}"
-        return await self._notify_and_close(message)
-
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Show the export menu."""
-        if user_input is not None:
-            if user_input["mode"] == "full":
-                return await self._handle_export_full()
-            return await self._handle_export_safe()
-        schema = vol.Schema(
-            {
-                vol.Required("mode", default="safe"): SelectSelector(
-                    SelectSelectorConfig(
-                        options=[
-                            SelectOptionDict(value="safe", label="Export Safe Profile"),
-                            SelectOptionDict(value="full", label="Export Full Profile"),
-                        ]
-                    )
-                ),
-            }
+        """Write the Full profile ZIP to the config directory."""
+        stub = filename_stub(self._config_entry)
+        filename = f"{stub}_profile_full.zip"
+        folder = Path(self.hass.config.path("homeconnect_ws_export"))
+
+        def _write() -> None:
+            folder.mkdir(exist_ok=True)
+            zip_bytes = build_profile_zip(self._config_entry, True)  # noqa: FBT003
+            (folder / filename).write_bytes(zip_bytes)
+
+        try:
+            await self.hass.async_add_executor_job(_write)
+        except OSError as err:
+            return await self._notify_and_close(f"Could not write export file: {err}")
+        return await self._notify_and_close(
+            f"Wrote `{filename}` to your config directory, under"
+            f" `homeconnect_ws_export/`. Retrieve it via Samba, SSH, or the File"
+            f" Editor add-on."
         )
-        return self.async_show_form(step_id="init", data_schema=schema)

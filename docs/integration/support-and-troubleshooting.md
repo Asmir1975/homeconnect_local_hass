@@ -21,16 +21,15 @@ Since this integration's functions have to be reverse engineered (see [Known Lim
 
 ### Basic method
 
-1. Use the [Export Safe Profile](other-stuff.md#exporting-an-appliance-profile) option to get a ZIP with the two XML files, already renamed and with no sensitive data - safe to share as-is.
+1. Download the [Diagnostics](https://www.home-assistant.io/docs/configuration/troubleshooting/#download-diagnostics) of the appliance's Config Entry - one click, no sensitive data. This now covers everything the old two-step process did in one file: the two profile XML files (same content the [Safe export](other-stuff.md#exporting-an-appliance-profile) ZIP has - no key/MAC/serial number) plus redacted config entry data and a live snapshot of the appliance's current state.
    - Alternatively, use the [Home Connect Profile Downloader](https://github.com/bruestel/homeconnect-profile-downloader) tool and manually remove the `.json` file (contains your encryption key - don't share it) and the MAC address segment from the two XML filenames.
-2. Download the [Diagnostics](https://www.home-assistant.io/docs/configuration/troubleshooting/#download-diagnostics) of the appliance's Config Entry.
-3. [Open a feature request](https://github.com/vemboy200/homeconnect_local_hass/issues/new?template=feature_request.yml) describing, in plain terms, the feature/entity you'd like added (e.g. "I want a sensor for my appliance's door state"), and attach the two XML files from the ZIP along with the Diagnostics.
+2. [Open a feature request](https://github.com/vemboy200/homeconnect_local_hass/issues/new?template=feature_request.yml) describing, in plain terms, the feature/entity you'd like added (e.g. "I want a sensor for my appliance's door state"), and attach the Diagnostics file.
 
 ### Advanced method
 
 If you're comfortable digging a bit deeper, you can help pinpoint exactly which feature maps to the entity you want, which makes it much faster for a developer to add:
 
-1. Follow steps 1-2 of the Basic method above.
+1. Follow step 1 of the Basic method above.
 2. [Enable debug logging](#enabling-debug-logging) for the integration.
 3. Trigger the feature on the appliance itself (e.g. open the door, change a setting, start a program) and watch the debug log for the corresponding update message.
 4. Note the UID logged for that update. It will be in **decimal**, while the UIDs inside the `*_DeviceDescription.xml`/`*_FeatureMapping.xml` files are in **hexadecimal**. Convert between the two to match them up. For example, on a Thermador oven, the live oven temperature in fahrenheit logs as UID `5959` (decimal), which is `1747` in hex, matching `Cooking.Oven.Status.Cavity.340.CurrentTemperatureFahrenheit` in the FeatureMapping file.
