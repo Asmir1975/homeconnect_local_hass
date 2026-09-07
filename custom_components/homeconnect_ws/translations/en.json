@@ -4138,11 +4138,8 @@
   "options": {
     "step": {
       "init": {
-        "title": "Export Appliance Profile",
-        "description": "Export this appliance's profile as a downloadable ZIP file.\n\n**Safe**: no encryption key or other sensitive data. Safe to share for a feature request. Delivered as a download link.\n\n**Full**: also includes the appliance's local encryption key, for transferring it to another system. Written to your config directory (`homeconnect_ws_export` folder) instead of a download link, to avoid exposing the key over HTTP.",
-        "data": {
-          "mode": "Export type"
-        }
+        "title": "Export Full Profile",
+        "description": "Writes this appliance's Full profile ZIP - the two profile XML files plus the local encryption key - to your config directory, under `homeconnect_ws_export/`. Retrieve it via Samba, SSH, or the File Editor add-on.\n\nFor the Safe profile (no key/MAC/serial - safe to share for a feature request), use the device page's **Download Diagnostics** button instead - no confirmation needed here for that.\n\nSubmit to confirm and write the file."
       }
     }
   }

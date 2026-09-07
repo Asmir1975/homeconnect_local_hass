@@ -650,6 +650,11 @@ class HCOptionsFlowHandler(OptionsFlow):
     directory instead requires actual filesystem access (Samba/SSH/File
     Editor) to retrieve it, a real access-control boundary independent of
     whoever's logged into the HA frontend at the time.
+
+    async_step_init requires an explicit form submission before writing -
+    opening "Configure" for any reason (even just to see what's there) must
+    not silently write the key to disk (confirmed live: it did, before this
+    guard existed).
     """
 
     def __init__(self, config_entry: HCConfigEntry) -> None:
@@ -670,7 +675,13 @@ class HCOptionsFlowHandler(OptionsFlow):
         return self.async_create_entry(title="", data=self._config_entry.options)
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Write the Full profile ZIP to the config directory."""
+        """Confirm, then write the Full profile ZIP to the config directory."""
+        if user_input is None:
+            # Full contains the real encryption key - opening "Configure" for
+            # any reason (including just to see what's there) must not
+            # silently write it to disk. Requires an explicit Submit click,
+            # same deliberateness the old Safe/Full mode choice provided.
+            return self.async_show_form(step_id="init", data_schema=vol.Schema({}))
         stub = filename_stub(self._config_entry)
         filename = f"{stub}_profile_full.zip"
         folder = Path(self.hass.config.path("homeconnect_ws_export"))
